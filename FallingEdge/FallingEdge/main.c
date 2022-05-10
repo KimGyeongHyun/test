@@ -11,6 +11,10 @@
 #include <avr/io.h>
 #include <stdbool.h>
 #include <util/delay.h>
+#include <avr/interrupt.h>
+
+#define PEOPLE_COUNT_PIN INT2
+#define CAR_COUNT_PIN INT3
 
 #include "millis.h"
 
@@ -40,47 +44,43 @@ void USART_TX_String(const char *text)
 
 
 
-bool isHigh;
-
-bool temp_Falling_Edge(){
-	if ((PIND & 0x01) == 0x01)
-		isHigh = true;
-	else
-		if (isHigh == true)
-		{
-			isHigh = false;
-			PORTF = PORTF | 0x01;
-			_delay_ms(1000);
-			PORTF = PORTF & 0x00;
-			return true;
-		}
-	return 0;
+// count car and people
+Counter_Init()
+{
+	// falling edge
+	// use INT2, INT3
+	EICRA &= ~(1 << ISC20);
+	EICRA = 1 << ISC21;
+	EICRA &= ~(1 << ISC30);
+	EICRA = 1 << ISC31;
+	
+	// interrupt enable
+	EIMSK |= (1 << PEOPLE_COUNT_PIN) | (1 << CAR_COUNT_PIN);
 }
 
-bool D0high = false, D1high = false;
+int peopleCount = 0, carCount = 0;
 
-bool D0_Falling_Ege(){
-	if ((PIND & 0x01) == 0x01)
-		D0high = true;
-	else
-		if (D0high == true)
-		{
-			D0high = false;
-			return true;
-		}
-	return false;
+// count people
+ISR(INT2_vect){
+	peopleCount++;
 }
 
-bool D1_Falling_Ege(){
-	if ((PIND & 0x02) == 0x02)
-	D1high = true;
-	else
-	if (D1high == true)
-	{
-		D1high = false;
-		return true;
-	}
-	return false;
+// count car
+ISR(INT3_vect){
+	carCount++;
+}
+
+
+// 사람과 자동차 count 보여주는 함수
+void Print_Falling_Edge(){
+	USART_TX_String("People count : ");
+	itoa(peopleCount, buffer, 10);
+	USART_TX_String(buffer);
+	USART_TX_String("\r\n");
+	USART_TX_String("Car count : ");
+	itoa(carCount, buffer, 10);
+	USART_TX_String(buffer);
+	USART_TX_String("\r\n");
 }
 
 
@@ -99,23 +99,7 @@ int main(void)
     /* Replace with your application code */
     while (1) 
     {
-		//temp_Falling_Edge();
-		if(D0_Falling_Ege() == true)	countD0++;
-		if(D1_Falling_Ege() == true)	countD1++;
-		itoa(countD0, bufferD0, 10);
-		itoa(countD1, bufferD1, 10);
-		
-		
-		if(millis() % 1000 == 0.0)
-		{
-			USART_TX_String("D0 : ");
-			USART_TX_String(bufferD0);
-			USART_TX_String("\r\n");
-			USART_TX_String("D1 : ");
-			USART_TX_String(bufferD1);
-			USART_TX_String("\r\n");
-			USART_TX_String("\r\n");
-		}
+		Print_Falling_Edge();
     }
 }
 
